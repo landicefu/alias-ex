@@ -19,6 +19,8 @@ function applyModifier(value, modifier) {
       return value.toUpperCase();
     case 'l': // lowercase
       return value.toLowerCase();
+    case 'f': // fullpath / absolute path
+      return path.resolve(value);
     default:
       return value;
   }

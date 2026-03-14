@@ -1,6 +1,6 @@
 {
   "name": "alias-ex",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "description": "Custom command aliases with variable substitution",
   "main": "src/index.js",
   "bin": {

@@ -5,112 +5,80 @@ description: Bump project version, commit changes, tag, and push
 
 # Bump Version
 
-Automates the version bumping workflow including checking for uncommitted changes, updating version files, committing, tagging, and pushing.
+Use this skill when the user asks to bump, update, or release a new version of the project.
 
-## Prerequisites
+## When to Use
 
-- Git repository with clean working directory
-- Version defined in package.json or other supported files
-- Write access to the remote repository
+When user says things like:
+- "bump version"
+- "release new version" 
+- "update version"
+- "bump to 1.2.3"
+- "release patch version"
 
-## Usage
+## Instructions
 
+Execute these steps in order:
+
+### 1. Check for Uncommitted Changes
 ```bash
-# Bump patch version (default)
-bump-version
-
-# Bump specific version level
-bump-version patch
-bump-version minor
-bump-version major
-
-# Bump to specific version
-bump-version 1.2.3
+git status --porcelain
 ```
+If output is not empty, STOP and tell user: "Please commit or stash your changes first before bumping version."
 
-## Workflow
+### 2. Determine Version Bump Type
+- If user says "major" or "breaking" → bump major version
+- If user says "minor" or "feature" → bump minor version  
+- If user specifies exact version (e.g., "1.2.3") → use that version
+- Otherwise → **default to patch**
 
-1. **Check for uncommitted changes**
-   - Run `git status --porcelain`
-   - If uncommitted changes exist, stop and ask user to commit first
+### 3. Calculate New Version
+Read current version from `package.json`, then:
+- **patch**: X.Y.Z → X.Y.(Z+1)  
+- **minor**: X.Y.Z → X.(Y+1).0
+- **major**: X.Y.Z → (X+1).0.0
 
-2. **Determine current version**
-   - Read from `package.json` (primary source)
-   - Parse semantic version (major.minor.patch)
+### 4. Update package.json
+Update the version field to the new version.
 
-3. **Calculate new version**
-   - If argument is `patch`, `minor`, or `major`: increment accordingly
-   - If argument is a specific version (e.g., `1.2.3`): use that
-   - Default: `patch`
+### 5. Commit the Change
+```bash
+git add package.json
+git commit -m "Bump version to vX.Y.Z"
+```
+Use exact format: `Bump version to v{version}`
 
-4. **Update version files**
-   - Modify `package.json` version field
-   - Add any other files that need version updates
+### 6. Create Git Tag
+```bash
+git tag -a vX.Y.Z -m "Release vX.Y.Z"
+```
+Always use `v` prefix (e.g., `v1.0.1` not `1.0.1`)
 
-5. **Commit changes**
-   - Stage modified files
-   - Commit with message: `Bump version to vX.Y.Z`
-
-6. **Create tag**
-   - Create annotated tag: `git tag -a vX.Y.Z -m "Release vX.Y.Z"`
-
-7. **Push to remote**
-   - Push commit: `git push origin <branch>`
-   - Push tag: `git push origin vX.Y.Z`
+### 7. Push to Remote
+```bash
+git push origin <current-branch>
+git push origin vX.Y.Z
+```
 
 ## Examples
 
-### Bump Patch Version (Default)
-```bash
-# Current: 1.0.0
-bump-version
-# New: 1.0.1
-# Creates commit "Bump version to v1.0.1" and tag "v1.0.1"
-```
+| User Says | Current | Action | New Version |
+|-----------|---------|--------|-------------|
+| "bump version" | 1.0.0 | patch | 1.0.1 |
+| "bump minor" | 1.0.0 | minor | 1.1.0 |
+| "bump major" | 1.0.0 | major | 2.0.0 |
+| "release 1.5.0" | 1.0.0 | set | 1.5.0 |
 
-### Bump Minor Version
-```bash
-# Current: 1.0.0
-bump-version minor
-# New: 1.1.0
-```
+## Important Rules
 
-### Bump Major Version
-```bash
-# Current: 1.0.0
-bump-version major
-# New: 2.0.0
-```
-
-### Bump to Specific Version
-```bash
-bump-version 2.5.0
-# New: 2.5.0
-```
-
-## Common Mistakes to Avoid
-
-❌ **Wrong**: Running with uncommitted changes
-✅ **Correct**: Commit or stash all changes first
-
-❌ **Wrong**: Manual version editing before running
-✅ **Correct**: Let the skill handle all version updates
-
-❌ **Wrong**: Creating tags manually
-✅ **Correct**: Let the skill create and push the tag
+1. **Default is always patch** unless user specifies otherwise
+2. **Always check uncommitted changes first** - never proceed if working directory is dirty
+3. **Use 'v' prefix** for all git tags
+4. **Commit message format**: `Bump version to vX.Y.Z`
+5. **Push both commit and tag** to remote
 
 ## Troubleshooting
 
-- **Issue**: "Uncommitted changes detected"
-  - **Solution**: Run `git status` to see changes, commit or stash them
-
-- **Issue**: "Failed to push"
-  - **Solution**: Check remote access, pull latest changes first if needed
-
-- **Issue**: "Tag already exists"
-  - **Solution**: Delete existing tag or choose different version
-
-## Related Documentation
-
-- [Semantic Versioning](https://semver.org/)
-- Git tagging best practices
+- **Tag already exists**: Tell user the tag exists and ask if they want to delete it or use different version
+- **Push failed**: Check if user has permission, suggest pulling latest changes first
+- **package.json not found**: This skill only works for Node.js projects with package.json

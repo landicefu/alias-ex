@@ -14,7 +14,7 @@ A CLI tool for managing custom command aliases with variable substitution. Defin
 ## Installation
 
 ```bash
-npm install -g alias-ex
+npm install -g @landicefu/alias-ex
 ```
 
 ## Quick Start
@@ -459,8 +459,8 @@ alias-ex/
 
 ```json
 {
-  "name": "alias-ex",
-  "version": "1.0.0",
+  "name": "@landicefu/alias-ex",
+  "version": "0.0.1",
   "description": "Custom command aliases with variable substitution",
   "main": "src/index.js",
   "bin": {

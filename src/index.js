@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { addCommand } = require('./commands/add');
-const { runCommand } = require('./commands/run');
+const { runCommand, runCustomCommand } = require('./commands/run');
 const { listCommands } = require('./commands/list');
 const { showCommand } = require('./commands/show');
 const { removeCommand } = require('./commands/remove');
@@ -29,6 +29,7 @@ Usage: ax <command> [options]
 Commands:
   add <name> <template>     Add a new custom command
   run <name> [args...]      Execute a custom command
+  run -c <command> [args..] Execute a custom command inline (supports token substitution)
   list                      List all configured commands
   show <name>               Show command template
   remove <name>             Remove a command
@@ -49,6 +50,7 @@ Examples:
   ax token add server 192.168.1.100
   ax add deploy 'scp $1 $USER@$server:$2'
   ax run deploy ./dist /var/www/html
+  ax run -c 'ssh landicefu@$server'
 `);
 }
 
@@ -75,7 +77,18 @@ function main() {
         break;
       
       case 'run':
-        runCommand(subArgs[0], subArgs.slice(1));
+        if (subArgs[0] === '-c') {
+          if (subArgs.length < 2) {
+            console.error('Error: -c option requires a command argument');
+            console.error('Usage: ax run -c "<command>" [args...]');
+            process.exit(1);
+          }
+          const customCommand = subArgs[1];
+          const customArgs = subArgs.slice(2);
+          runCustomCommand(customCommand, customArgs);
+        } else {
+          runCommand(subArgs[0], subArgs.slice(1));
+        }
         break;
       
       case 'list':

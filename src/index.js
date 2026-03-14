@@ -4,6 +4,7 @@ const { listCommands } = require('./commands/list');
 const { showCommand } = require('./commands/show');
 const { removeCommand } = require('./commands/remove');
 const { editCommand } = require('./commands/edit');
+const { configCommand } = require('./commands/config');
 const { addToken } = require('./commands/token/add');
 const { listTokens } = require('./commands/token/list');
 const { showToken } = require('./commands/token/show');
@@ -20,7 +21,8 @@ Commands:
   show <name>               Show command template
   remove <name>             Remove a command
   edit <name>               Edit a command template
-  
+  config [key] [value]      Get or set configuration
+
 Token Commands:
   token add <name> <value>  Add a reusable token
   token list                List all tokens
@@ -73,7 +75,11 @@ function main() {
       case 'edit':
         editCommand(subArgs[0]);
         break;
-      
+
+      case 'config':
+        configCommand(subArgs[0], subArgs[1]);
+        break;
+
       case 'token':
         handleTokenCommand(subArgs);
         break;

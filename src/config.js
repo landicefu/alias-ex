@@ -7,7 +7,10 @@ const CONFIG_FILE = process.env.ALIAS_EX_CONFIG || path.join(CONFIG_DIR, 'alias-
 
 const defaultConfig = {
   tokens: {},
-  commands: {}
+  commands: {},
+  settings: {
+    verbose: true
+  }
 };
 
 function ensureConfigDir() {
@@ -28,7 +31,8 @@ function loadConfig() {
     const config = JSON.parse(data);
     return {
       tokens: config.tokens || {},
-      commands: config.commands || {}
+      commands: config.commands || {},
+      settings: { ...defaultConfig.settings, ...config.settings }
     };
   } catch (err) {
     console.error('Warning: Config file corrupted, using defaults');

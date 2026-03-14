@@ -12,8 +12,10 @@ function runCommand(name, args) {
   }
   
   const parsedCommand = parseTemplate(command.template, args, config.tokens);
-  
-  console.log(`Executing: ${parsedCommand}`);
+
+  if (config.settings.verbose !== false) {
+    console.log(`Executing: ${parsedCommand}`);
+  }
   
   const child = spawn(parsedCommand, [], {
     stdio: 'inherit',

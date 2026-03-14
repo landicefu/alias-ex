@@ -1,6 +1,6 @@
 {
   "name": "@landicefu/alias-ex",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Custom command aliases with variable substitution",
   "main": "src/index.js",
   "bin": {
@@ -14,5 +14,8 @@
   "license": "MIT",
   "engines": {
     "node": ">=14.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

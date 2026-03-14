@@ -1,3 +1,5 @@
+const fs = require('fs');
+const path = require('path');
 const { addCommand } = require('./commands/add');
 const { runCommand } = require('./commands/run');
 const { listCommands } = require('./commands/list');
@@ -9,6 +11,16 @@ const { addToken } = require('./commands/token/add');
 const { listTokens } = require('./commands/token/list');
 const { showToken } = require('./commands/token/show');
 const { removeToken } = require('./commands/token/remove');
+
+function getVersion() {
+  try {
+    const packagePath = path.join(__dirname, '..', 'package.json');
+    const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
+    return packageJson.version;
+  } catch (err) {
+    return 'unknown';
+  }
+}
 
 function showHelp() {
   console.log(`
@@ -31,6 +43,7 @@ Token Commands:
 
 Options:
   -h, --help                Show this help message
+  -v, --version             Show version number
 
 Examples:
   ax token add server 192.168.1.100
@@ -41,9 +54,14 @@ Examples:
 
 function main() {
   const args = process.argv.slice(2);
-  
+
   if (args.length === 0 || args[0] === '-h' || args[0] === '--help') {
     showHelp();
+    return;
+  }
+
+  if (args[0] === '-v' || args[0] === '--version') {
+    console.log(getVersion());
     return;
   }
   

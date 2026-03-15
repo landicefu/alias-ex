@@ -21,7 +21,7 @@ _ax_completions() {
   prev="\${COMP_WORDS[COMP_CWORD-1]}"
   
   # Built-in commands
-  local builtins="add run list show remove edit config token complete -h --help -v --version"
+  local builtins="add run list show remove edit config token complete"
   
   # Custom commands from config
   local customs="${customCommands}"
@@ -41,7 +41,7 @@ _ax_completions() {
   case "\${first}" in
     run)
       # Complete with custom commands
-      COMPREPLY=( $(compgen -W "\${customs} -c" -- \${cur}) )
+      COMPREPLY=( $(compgen -W "\${customs}" -- \${cur}) )
       ;;
     token)
       # Complete with token subcommands
@@ -81,7 +81,7 @@ _ax_completions() {
   typeset -A opt_args
   
   # Built-in commands
-  local builtins=(add run list show remove edit config token complete -h --help -v --version)
+  local builtins=(add run list show remove edit config token complete)
   
   # Custom commands from config
   local customs=(${customCommands})
@@ -90,8 +90,6 @@ _ax_completions() {
   local all_commands=(\${builtins[@]} \${customs[@]})
   
   _arguments -C \\
-    '(-h --help)'{-h,--help}'[Show help message]' \\
-    '(-v --version)'{-v,--version}'[Show version number]' \\
     '1: :->command' \\
     '*: :->args'
   
@@ -102,9 +100,7 @@ _ax_completions() {
     args)
       case "\$line[1]" in
         run)
-          _alternative \\
-            'commands:custom commands:(\${customs[@]})' \\
-            'options:options:(-c)'
+          _describe -t commands 'custom commands' customs
           ;;
         token)
           _describe -t commands 'token subcommands' (add list show remove)
@@ -134,8 +130,8 @@ function generateFishCompletion() {
   return `# Fish completion script for ax
 # Save to ~/.config/fish/completions/ax.fish or run: ax complete --fish > ~/.config/fish/completions/ax.fish
 
-# Built-in commands
-set -l builtins add run list show remove edit config token complete -h --help -v --version
+  # Built-in commands
+set -l builtins add run list show remove edit config token complete
 
 # Custom commands
 set -l customs ${customCommands}
@@ -143,9 +139,8 @@ set -l customs ${customCommands}
 # Complete first argument with all commands
 complete -c ax -n '__fish_is_first_arg' -a "$builtins $customs"
 
-# Complete 'run' subcommand with custom commands and -c option
+# Complete 'run' subcommand with custom commands
 complete -c ax -n '__fish_seen_subcommand_from run' -a "$customs"
-complete -c ax -n '__fish_seen_subcommand_from run' -s c -d 'Execute inline command'
 
 # Complete 'token' subcommand
 complete -c ax -n '__fish_seen_subcommand_from token' -a "add list show remove"

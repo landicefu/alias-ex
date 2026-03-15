@@ -1,6 +1,5 @@
 const fs = require('fs');
 const path = require('path');
-const { AutoComplete } = require('enquirer');
 const { addCommand } = require('./commands/add');
 const { runCommand, runCustomCommand } = require('./commands/run');
 const { listCommands } = require('./commands/list');
@@ -12,6 +11,7 @@ const { addToken } = require('./commands/token/add');
 const { listTokens } = require('./commands/token/list');
 const { showToken } = require('./commands/token/show');
 const { removeToken } = require('./commands/token/remove');
+const { completeCommand } = require('./commands/complete');
 const { loadConfig } = require('./config');
 
 function getVersion() {
@@ -37,6 +37,7 @@ Commands:
   remove <name>             Remove a command
   edit <name>               Edit a command template
   config [key] [value]      Get or set configuration
+  complete --bash|--zsh     Output shell completion script
 
 Token Commands:
   token add <name> <value>  Add a reusable token
@@ -48,94 +49,15 @@ Options:
   -h, --help                Show this help message
   -v, --version             Show version number
 
-Command Matching:
-  You can use partial command names - if multiple commands match,
-  an interactive fuzzy finder will help you select the right one.
-
 Examples:
   ax token add server 192.168.1.100
-  ax add deploy 'scp $1 $USER@$server:$2'
+  ax add deploy 'scp $1 $USER@\$server:\$2'
   ax run deploy ./dist /var/www/html
-  ax run -c 'ssh landicefu@$server'
-  ax dep                    # Fuzzy match: shows deploy, deploy-prod, etc.
-  ax run dep                # Same as above
+  ax run -c 'ssh landicefu@\$server'
 `);
 }
 
-// Find commands that match the partial input
-function findMatchingCommands(partial, commands) {
-  if (!partial) return Object.keys(commands);
-  
-  const partialLower = partial.toLowerCase();
-  return Object.keys(commands).filter(cmd => 
-    cmd.toLowerCase().includes(partialLower)
-  );
-}
-
-// Show interactive fuzzy finder for command selection
-async function promptForCommand(partial, commands, message = 'Select a command:') {
-  const choices = Object.entries(commands).map(([name, cmd]) => ({
-    name: name,
-    message: `${name.padEnd(20)} ${cmd.template}`,
-    value: name
-  }));
-
-  const prompt = new AutoComplete({
-    name: 'command',
-    message: message,
-    limit: 10,
-    initial: partial || '',
-    choices: choices,
-    suggest(input, choices) {
-      if (!input) return choices;
-      const inputLower = input.toLowerCase();
-      return choices.filter(choice => 
-        choice.name.toLowerCase().includes(inputLower)
-      );
-    }
-  });
-
-  try {
-    const answer = await prompt.run();
-    return answer;
-  } catch (err) {
-    // User cancelled (Ctrl+C)
-    process.exit(0);
-  }
-}
-
-// Handle command execution with fuzzy matching
-async function handleCommandExecution(commandName, args, config) {
-  // Exact match - execute directly
-  if (config.commands[commandName]) {
-    runCommand(commandName, args);
-    return;
-  }
-
-  // Find partial matches
-  const matches = findMatchingCommands(commandName, config.commands);
-
-  if (matches.length === 0) {
-    console.error(`Unknown command: ${commandName}`);
-    console.error('Run "ax --help" for usage information');
-    process.exit(1);
-  } else if (matches.length === 1) {
-    // Single match - execute it
-    console.log(`Executing '${matches[0]}' (matched from '${commandName}')`);
-    runCommand(matches[0], args);
-  } else {
-    // Multiple matches - show interactive picker with only matched commands
-    console.log(`Multiple matches for '${commandName}':`);
-    const matchedCommands = {};
-    matches.forEach(match => {
-      matchedCommands[match] = config.commands[match];
-    });
-    const selected = await promptForCommand(commandName, matchedCommands, 'Select command to run:');
-    runCommand(selected, args);
-  }
-}
-
-async function main() {
+function main() {
   const args = process.argv.slice(2);
 
   if (args.length === 0 || args[0] === '-h' || args[0] === '--help') {
@@ -167,28 +89,8 @@ async function main() {
           const customCommand = subArgs[1];
           const customArgs = subArgs.slice(2);
           runCustomCommand(customCommand, customArgs);
-        } else if (!subArgs[0]) {
-          // ax run <TAB> or ax run with no command - show all commands
-          const config = loadConfig();
-          if (Object.keys(config.commands).length === 0) {
-            console.log('No commands configured. Use "ax add <name> <template>" to add commands.');
-          } else {
-            const selected = await promptForCommand('', config.commands, 'Select command to run:');
-            runCommand(selected, []);
-          }
         } else {
-          // Check for partial match
-          const config = loadConfig();
-          const commandName = subArgs[0];
-          const commandArgs = subArgs.slice(1);
-          
-          // Exact match
-          if (config.commands[commandName]) {
-            runCommand(commandName, commandArgs);
-          } else {
-            // Try fuzzy matching
-            await handleCommandExecution(commandName, commandArgs, config);
-          }
+          runCommand(subArgs[0], subArgs.slice(1));
         }
         break;
       
@@ -215,11 +117,22 @@ async function main() {
       case 'token':
         handleTokenCommand(subArgs);
         break;
+
+      case 'complete':
+        completeCommand(subArgs[0]);
+        break;
       
       default:
-        // Check if it's a custom command (exact or fuzzy match)
+        // Check if it's a custom command
         const config = loadConfig();
-        await handleCommandExecution(command, subArgs, config);
+        if (config.commands && config.commands[command]) {
+          // Execute custom command directly without 'run'
+          runCommand(command, subArgs);
+        } else {
+          console.error(`Unknown command: ${command}`);
+          console.error('Run "ax --help" for usage information');
+          process.exit(1);
+        }
     }
   } catch (err) {
     console.error(`Error: ${err.message}`);

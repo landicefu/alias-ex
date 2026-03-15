@@ -168,26 +168,30 @@ ax complete --zsh
 ax complete --fish
 ```
 
-**Setup Instructions:**
+### `ax complete install --bash|--zsh|--fish`
 
-Add to your shell configuration file:
+Automatically install shell completion to your shell configuration file. This command:
+- Adds the completion source line to your shell config
+- Prevents duplicate installations
+- Shows instructions for reloading your shell
 
-**Bash** (`~/.bashrc`):
 ```bash
-source <(ax complete --bash)
+# Install Bash completion (adds to ~/.bashrc)
+ax complete install --bash
+
+# Install Zsh completion (adds to ~/.zshrc)
+ax complete install --zsh
+
+# Install Fish completion (adds to ~/.config/fish/completions/ax.fish)
+ax complete install --fish
 ```
 
-**Zsh** (`~/.zshrc`):
+After installation, reload your shell:
 ```bash
-source <(ax complete --zsh)
+source ~/.bashrc    # or ~/.zshrc
 ```
 
-**Fish**:
-```bash
-ax complete --fish > ~/.config/fish/completions/ax.fish
-```
-
-After reloading your shell, you can use tab completion:
+**Tab Completion Examples:**
 ```bash
 ax de<TAB>          # Shows: deploy, delete, deploy-prod
 ax run de<TAB>      # Shows: deploy, delete, deploy-prod

@@ -38,6 +38,7 @@ Commands:
   edit <name>               Edit a command template
   config [key] [value]      Get or set configuration
   complete --bash|--zsh     Output shell completion script
+  complete install --shell  Install shell completion to config file
 
 Token Commands:
   token add <name> <value>  Add a reusable token
@@ -119,7 +120,7 @@ function main() {
         break;
 
       case 'complete':
-        completeCommand(subArgs[0]);
+        completeCommand(subArgs);
         break;
       
       default:

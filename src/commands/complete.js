@@ -1,12 +1,10 @@
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
 const { loadConfig } = require('../config');
 
-// Built-in commands
-const BUILTIN_COMMANDS = [
-  'add', 'run', 'list', 'show', 'remove', 'edit', 'config', 'token', 'complete', '-h', '--help', '-v', '--version'
-];
-
-// Token subcommands
-const TOKEN_SUBCOMMANDS = ['add', 'list', 'show', 'remove'];
+// Marker comment to identify ax completion in shell configs
+const COMPLETION_MARKER = '# ax completion - managed by alias-ex';
 
 function generateBashCompletion() {
   const config = loadConfig();
@@ -162,7 +160,110 @@ complete -c ax -n "__fish_seen_subcommand_from $customs" -a '(__fish_complete_pa
 `;
 }
 
-function completeCommand(shell) {
+function getShellConfigPath(shell) {
+  const home = os.homedir();
+  
+  switch (shell) {
+    case '--bash':
+      return path.join(home, '.bashrc');
+    case '--zsh':
+      return path.join(home, '.zshrc');
+    case '--fish':
+      // Fish uses a different mechanism - completions go in a directory
+      return path.join(home, '.config', 'fish', 'completions', 'ax.fish');
+    default:
+      return null;
+  }
+}
+
+function isCompletionInstalled(configPath, marker) {
+  try {
+    if (!fs.existsSync(configPath)) {
+      return false;
+    }
+    const content = fs.readFileSync(configPath, 'utf8');
+    return content.includes(marker);
+  } catch (err) {
+    return false;
+  }
+}
+
+function installBashCompletion() {
+  const configPath = getShellConfigPath('--bash');
+  const sourceLine = `${COMPLETION_MARKER}\nsource <(ax complete --bash)`;
+  
+  if (isCompletionInstalled(configPath, COMPLETION_MARKER)) {
+    console.log('✓ Bash completion is already installed in ~/.bashrc');
+    console.log('  To update, remove the line starting with "' + COMPLETION_MARKER + '" and run again');
+    return;
+  }
+  
+  try {
+    fs.appendFileSync(configPath, '\n' + sourceLine + '\n');
+    console.log('✓ Bash completion installed successfully!');
+    console.log(`  Added to: ${configPath}`);
+    console.log('  Reload your shell with: source ~/.bashrc');
+  } catch (err) {
+    console.error(`Error: Could not write to ${configPath}`);
+    console.error(err.message);
+    process.exit(1);
+  }
+}
+
+function installZshCompletion() {
+  const configPath = getShellConfigPath('--zsh');
+  const sourceLine = `${COMPLETION_MARKER}\nsource <(ax complete --zsh)`;
+  
+  if (isCompletionInstalled(configPath, COMPLETION_MARKER)) {
+    console.log('✓ Zsh completion is already installed in ~/.zshrc');
+    console.log('  To update, remove the line starting with "' + COMPLETION_MARKER + '" and run again');
+    return;
+  }
+  
+  try {
+    fs.appendFileSync(configPath, '\n' + sourceLine + '\n');
+    console.log('✓ Zsh completion installed successfully!');
+    console.log(`  Added to: ${configPath}`);
+    console.log('  Reload your shell with: source ~/.zshrc');
+  } catch (err) {
+    console.error(`Error: Could not write to ${configPath}`);
+    console.error(err.message);
+    process.exit(1);
+  }
+}
+
+function installFishCompletion() {
+  const completionPath = getShellConfigPath('--fish');
+  const completionDir = path.dirname(completionPath);
+  
+  if (isCompletionInstalled(completionPath, 'ax completion')) {
+    console.log('✓ Fish completion is already installed');
+    console.log(`  Location: ${completionPath}`);
+    console.log('  To update, delete the file and run again');
+    return;
+  }
+  
+  try {
+    // Create completions directory if it doesn't exist
+    if (!fs.existsSync(completionDir)) {
+      fs.mkdirSync(completionDir, { recursive: true });
+    }
+    
+    // Write completion file
+    const completionScript = generateFishCompletion();
+    fs.writeFileSync(completionPath, completionScript);
+    
+    console.log('✓ Fish completion installed successfully!');
+    console.log(`  Written to: ${completionPath}`);
+    console.log('  Reload your shell or run: source ' + completionPath);
+  } catch (err) {
+    console.error(`Error: Could not write to ${completionPath}`);
+    console.error(err.message);
+    process.exit(1);
+  }
+}
+
+function printCompletion(shell) {
   switch (shell) {
     case '--bash':
       console.log(generateBashCompletion());
@@ -174,21 +275,80 @@ function completeCommand(shell) {
       console.log(generateFishCompletion());
       break;
     default:
-      console.error('Usage: ax complete --bash|--zsh|--fish');
+      return false;
+  }
+  return true;
+}
+
+function installCompletion(shell) {
+  switch (shell) {
+    case '--bash':
+      installBashCompletion();
+      break;
+    case '--zsh':
+      installZshCompletion();
+      break;
+    case '--fish':
+      installFishCompletion();
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
+
+function completeCommand(args) {
+  // Check if first arg is 'install'
+  if (args[0] === 'install') {
+    if (args.length < 2) {
+      console.error('Usage: ax complete install --bash|--zsh|--fish');
       console.error('');
-      console.error('Generate shell completion scripts for ax.');
+      console.error('Install shell completion to your shell configuration file.');
       console.error('');
       console.error('Examples:');
-      console.error('  # Bash (add to ~/.bashrc):');
-      console.error('  source <(ax complete --bash)');
-      console.error('');
-      console.error('  # Zsh (add to ~/.zshrc):');
-      console.error('  source <(ax complete --zsh)');
-      console.error('');
-      console.error('  # Fish (save to completions dir):');
-      console.error('  ax complete --fish > ~/.config/fish/completions/ax.fish');
+      console.error('  ax complete install --bash    # Add to ~/.bashrc');
+      console.error('  ax complete install --zsh     # Add to ~/.zshrc');
+      console.error('  ax complete install --fish    # Add to ~/.config/fish/completions/ax.fish');
       process.exit(1);
+    }
+    
+    if (!installCompletion(args[1])) {
+      console.error(`Error: Unknown shell "${args[1]}"`);
+      console.error('Supported shells: --bash, --zsh, --fish');
+      process.exit(1);
+    }
+  } else {
+    // Print completion script
+    if (args.length === 0) {
+      console.error('Usage: ax complete --bash|--zsh|--fish');
+      console.error('       ax complete install --bash|--zsh|--fish');
+      console.error('');
+      console.error('Generate or install shell completion scripts for ax.');
+      console.error('');
+      console.error('Print completion script:');
+      console.error('  ax complete --bash      # Output bash completion');
+      console.error('  ax complete --zsh       # Output zsh completion');
+      console.error('  ax complete --fish      # Output fish completion');
+      console.error('');
+      console.error('Install completion (adds to shell config):');
+      console.error('  ax complete install --bash    # Add to ~/.bashrc');
+      console.error('  ax complete install --zsh     # Add to ~/.zshrc');
+      console.error('  ax complete install --fish    # Add to fish completions');
+      process.exit(1);
+    }
+    
+    if (!printCompletion(args[0])) {
+      console.error(`Error: Unknown option "${args[0]}"`);
+      console.error('Usage: ax complete --bash|--zsh|--fish');
+      console.error('       ax complete install --bash|--zsh|--fish');
+      process.exit(1);
+    }
   }
 }
 
-module.exports = { completeCommand, generateBashCompletion, generateZshCompletion, generateFishCompletion };
+module.exports = { 
+  completeCommand, 
+  generateBashCompletion, 
+  generateZshCompletion, 
+  generateFishCompletion 
+};

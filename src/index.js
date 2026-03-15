@@ -11,6 +11,7 @@ const { addToken } = require('./commands/token/add');
 const { listTokens } = require('./commands/token/list');
 const { showToken } = require('./commands/token/show');
 const { removeToken } = require('./commands/token/remove');
+const { loadConfig } = require('./config');
 
 function getVersion() {
   try {
@@ -116,9 +117,16 @@ function main() {
         break;
       
       default:
-        console.error(`Unknown command: ${command}`);
-        console.error('Run "ax --help" for usage information');
-        process.exit(1);
+        // Check if it's a custom command
+        const config = loadConfig();
+        if (config.commands && config.commands[command]) {
+          // Execute custom command directly without 'run'
+          runCommand(command, subArgs);
+        } else {
+          console.error(`Unknown command: ${command}`);
+          console.error('Run "ax --help" for usage information');
+          process.exit(1);
+        }
     }
   } catch (err) {
     console.error(`Error: ${err.message}`);

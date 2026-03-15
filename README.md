@@ -9,6 +9,8 @@ A CLI tool for managing custom command aliases with variable substitution. Defin
 - **Variable Substitution**: Use placeholders like `$1`, `$2`, `$@`, `$#`
 - **Argument Modifiers**: Transform arguments with `:b`, `:d`, `:e`, `:r`, `:u`, `:l`
 - **Environment Variables**: Access any environment variable with `$VAR_NAME`
+- **Direct Execution**: Run custom commands without the `run` prefix (e.g., `ax deploy` instead of `ax run deploy`)
+- **Shell Completion**: Built-in tab completion support for Bash, Zsh, and Fish
 - **Lightweight**: Simple JSON configuration, no complex setup
 
 ## Installation
@@ -27,12 +29,13 @@ ax token add user admin
 # Add a custom command using tokens
 ax add deploy 'scp -r $1 $user@$mac-mini:$2 && echo "Deployed $1:b to $mac-mini"'
 
-# Use it
+# Use it (with 'run' subcommand)
 ax run deploy ./dist /var/www/html
 # → Executes: scp -r ./dist admin@192.168.1.100:/var/www/html && echo "Deployed ./dist to 192.168.1.100"
 
-# Or after setting up shell integration:
-deploy ./dist /var/www/html
+# Or without 'run' (shorter syntax)
+ax deploy ./dist /var/www/html
+# → Same result
 
 # List all commands and tokens
 ax list
@@ -127,6 +130,68 @@ Edit a command template interactively.
 
 ```bash
 ax edit deploy
+```
+
+### `ax config [key] [value]`
+
+Get or set configuration settings.
+
+```bash
+# Show all settings
+ax config
+
+# Get a specific setting
+ax config verbose
+
+# Set a setting
+ax config verbose false
+```
+
+**Available Settings:**
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `verbose` | boolean | `true` | Show "Executing: " message before running commands |
+
+### `ax complete --bash|--zsh|--fish`
+
+Generate shell completion scripts for tab completion support.
+
+```bash
+# Generate Bash completion
+ax complete --bash
+
+# Generate Zsh completion
+ax complete --zsh
+
+# Generate Fish completion
+ax complete --fish
+```
+
+**Setup Instructions:**
+
+Add to your shell configuration file:
+
+**Bash** (`~/.bashrc`):
+```bash
+source <(ax complete --bash)
+```
+
+**Zsh** (`~/.zshrc`):
+```bash
+source <(ax complete --zsh)
+```
+
+**Fish**:
+```bash
+ax complete --fish > ~/.config/fish/completions/ax.fish
+```
+
+After reloading your shell, you can use tab completion:
+```bash
+ax de<TAB>          # Shows: deploy, delete, deploy-prod
+ax run de<TAB>      # Shows: deploy, delete, deploy-prod
+ax token <TAB>      # Shows: add, list, show, remove
 ```
 
 ### `ax token add <name> <value>`
@@ -377,49 +442,20 @@ ax add archive 'tar czf $1-$(date +%Y%m%d).tar.gz $@2'
 ax run archive backups ~/Documents ~/Pictures
 ```
 
-## Shell Integration (Optional)
+## Direct Command Execution
 
-To use commands directly without `ax run` prefix:
-
-### Bash
-
-Add to `~/.bashrc`:
+You can execute custom commands directly without the `run` prefix:
 
 ```bash
-# Alias-ex integration
-ax() {
-  if [ $# -eq 0 ]; then
-    command ax
-  elif command ax show "$1" &>/dev/null; then
-    command ax run "$@"
-  else
-    command ax "$@"
-  fi
-}
+# Both work the same:
+ax run deploy ./dist production
+ax deploy ./dist production
+
+ax run backup ~/documents
+ax backup ~/documents
 ```
 
-### Zsh
-
-Add to `~/.zshrc`:
-
-```zsh
-# Alias-ex integration
-ax() {
-  if [ $# -eq 0 ]; then
-    command ax
-  elif command ax show "$1" &>/dev/null; then
-    command ax run "$@"
-  else
-    command ax "$@"
-  fi
-}
-```
-
-Now you can use:
-```bash
-deploy ./dist production    # Instead of: ax run deploy ./dist production
-backup ~/documents         # Instead of: ax run backup ~/documents
-```
+**Note:** Built-in commands (`add`, `list`, `show`, `remove`, `edit`, `config`, `token`, `complete`) always take precedence over custom commands with the same name.
 
 ## Environment Variables
 

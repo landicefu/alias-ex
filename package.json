@@ -10,12 +10,20 @@
     "start": "node bin/ax",
     "test": "node test/test.js"
   },
-  "keywords": ["cli", "alias", "command", "template"],
+  "keywords": [
+    "cli",
+    "alias",
+    "command",
+    "template"
+  ],
   "license": "MIT",
   "engines": {
     "node": ">=14.0.0"
   },
   "publishConfig": {
     "access": "public"
+  },
+  "dependencies": {
+    "enquirer": "^2.4.1"
   }
 }

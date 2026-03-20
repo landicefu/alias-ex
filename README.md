@@ -2,6 +2,8 @@
 
 A CLI tool for managing custom command aliases with variable substitution. Define reusable commands with placeholders for arguments, environment variables, and more.
 
+<a href="https://www.buymeacoffee.com/landicefu" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" style="height: 60px !important;width: 217px !important;" ></a>
+
 ## Features
 
 - **User-Defined Tokens**: Define reusable values (e.g., `$mac-mini`, `$prod-server`) and use them across all commands

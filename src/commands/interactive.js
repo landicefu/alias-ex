@@ -1,6 +1,6 @@
 const readline = require('readline');
 const { spawn } = require('child_process');
-const { loadConfig } = require('../config');
+const { loadConfig, saveConfig } = require('../config');
 const { parseTemplate } = require('../parser');
 
 // ANSI color codes
@@ -39,7 +39,7 @@ ${colors.dim}Type 'help' for available commands, 'exit' or 'quit' to leave.${col
 
 function printHelp(config) {
   const commands = Object.keys(config.commands || {}).sort();
-  
+
   console.log(`
 ${colors.bright}Available ax commands:${colors.reset}`);
   if (commands.length === 0) {
@@ -51,14 +51,20 @@ ${colors.bright}Available ax commands:${colors.reset}`);
       console.log(`  ${colors.green}${cmd.padEnd(15)}${colors.reset} ${colors.gray}${displayTemplate}${colors.reset}`);
     });
   }
-  
+
   console.log(`
 ${colors.bright}Special commands:${colors.reset}
-  ${colors.yellow}help${colors.reset}          Show this help message
-  ${colors.yellow}exit/quit${colors.reset}     Exit interactive shell
-  ${colors.yellow}clear${colors.reset}         Clear the screen
-  ${colors.yellow}list${colors.reset}          List all ax commands
-  ${colors.yellow}tokens${colors.reset}        List all tokens
+  ${colors.yellow}help${colors.reset}                     Show this help message
+  ${colors.yellow}exit/quit${colors.reset}                Exit interactive shell
+  ${colors.yellow}clear${colors.reset}                    Clear the screen
+  ${colors.yellow}list${colors.reset}                     List all ax commands
+  ${colors.yellow}tokens${colors.reset}                   List all tokens
+
+${colors.bright}Token commands:${colors.reset}
+  ${colors.yellow}token list${colors.reset}               List all tokens
+  ${colors.yellow}token add <name> <value>${colors.reset}   Add a new token
+  ${colors.yellow}token remove <name>${colors.reset}       Remove a token
+  ${colors.yellow}token show <name>${colors.reset}         Show token value
 
 ${colors.bright}Usage:${colors.reset}
   • Type an ${colors.cyan}ax command name${colors.reset} to execute it directly
@@ -142,7 +148,7 @@ function listTokens(config) {
 
 function listCommands(config) {
   const commands = Object.keys(config.commands || {}).sort();
-  
+
   console.log(`\n${colors.bright}Available commands:${colors.reset}`);
   if (commands.length === 0) {
     console.log(`  ${colors.gray}(none defined)${colors.reset}`);
@@ -156,6 +162,73 @@ function listCommands(config) {
   console.log();
 }
 
+function handleTokenCommand(args, config) {
+  if (args.length === 0) {
+    console.log(`${colors.yellow}Usage:${colors.reset} token <list|add|remove|show> [options]`);
+    return;
+  }
+
+  const subCommand = args[0];
+  const subArgs = args.slice(1);
+
+  switch (subCommand) {
+    case 'list':
+      listTokens(config);
+      break;
+
+    case 'add': {
+      if (subArgs.length < 2) {
+        console.error(`${colors.red}Error: token add requires name and value${colors.reset}`);
+        console.log(`${colors.yellow}Usage:${colors.reset} token add <name> <value>`);
+        return;
+      }
+      const name = subArgs[0];
+      const value = subArgs.slice(1).join(' ');
+      config.tokens[name] = value;
+      saveConfig(config);
+      console.log(`${colors.green}✓ Token '$${name}' added${colors.reset}`);
+      break;
+    }
+
+    case 'remove':
+    case 'rm': {
+      if (subArgs.length < 1) {
+        console.error(`${colors.red}Error: token remove requires a name${colors.reset}`);
+        console.log(`${colors.yellow}Usage:${colors.reset} token remove <name>`);
+        return;
+      }
+      const name = subArgs[0];
+      if (config.tokens[name]) {
+        delete config.tokens[name];
+        saveConfig(config);
+        console.log(`${colors.green}✓ Token '$${name}' removed${colors.reset}`);
+      } else {
+        console.error(`${colors.red}Error: Token '$${name}' not found${colors.reset}`);
+      }
+      break;
+    }
+
+    case 'show': {
+      if (subArgs.length < 1) {
+        console.error(`${colors.red}Error: token show requires a name${colors.reset}`);
+        console.log(`${colors.yellow}Usage:${colors.reset} token show <name>`);
+        return;
+      }
+      const name = subArgs[0];
+      if (config.tokens[name]) {
+        console.log(`${colors.magenta}$${name}${colors.reset} = ${config.tokens[name]}`);
+      } else {
+        console.error(`${colors.red}Error: Token '$${name}' not found${colors.reset}`);
+      }
+      break;
+    }
+
+    default:
+      console.error(`${colors.red}Unknown token subcommand: ${subCommand}${colors.reset}`);
+      console.log(`${colors.yellow}Usage:${colors.reset} token <list|add|remove|show>`);
+  }
+}
+
 async function interactiveShell() {
   const config = loadConfig();
   
@@ -167,9 +240,9 @@ async function interactiveShell() {
     prompt: getPrompt(config),
     completer: (line) => {
       const commands = Object.keys(config.commands || {});
-      const builtins = ['help', 'exit', 'quit', 'clear', 'list', 'tokens'];
+      const builtins = ['help', 'exit', 'quit', 'clear', 'list', 'tokens', 'token'];
       const all = [...commands, ...builtins].sort();
-      
+
       const hits = all.filter(c => c.startsWith(line));
       return [hits.length ? hits : all, line];
     }
@@ -215,6 +288,11 @@ async function interactiveShell() {
         
       case 'tokens':
         listTokens(config);
+        rl.prompt();
+        return;
+
+      case 'token':
+        handleTokenCommand(args, config);
         rl.prompt();
         return;
     }

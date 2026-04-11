@@ -69,76 +69,23 @@ ${colors.bright}Token commands:${colors.reset}
 ${colors.bright}Usage:${colors.reset}
   • Type an ${colors.cyan}ax command name${colors.reset} to execute it directly
   • Type any ${colors.gray}shell command${colors.reset} to run it normally
-  • Pass arguments to commands: ${colors.green}deploy ./dist /var/www${colors.reset}
 `);
-}
-
-function executeShellCommand(commandLine) {
-  return new Promise((resolve) => {
-    const child = spawn(commandLine, [], {
-      stdio: 'inherit',
-      shell: true
-    });
-    
-    child.on('close', (code) => {
-      resolve(code);
-    });
-    
-    child.on('error', (err) => {
-      console.error(`${colors.red}Error: ${err.message}${colors.reset}`);
-      resolve(1);
-    });
-  });
-}
-
-function executeAxCommand(commandName, args, config) {
-  return new Promise((resolve) => {
-    const command = config.commands[commandName];
-    if (!command) {
-      console.error(`${colors.red}Error: Command '${commandName}' not found${colors.reset}`);
-      resolve(1);
-      return;
-    }
-    
-    const parsedCommand = parseTemplate(command.template, args, config.tokens);
-    
-    console.log(`${colors.gray}→ ${parsedCommand}${colors.reset}`);
-    
-    const child = spawn(parsedCommand, [], {
-      stdio: 'inherit',
-      shell: true
-    });
-    
-    child.on('close', (code) => {
-      if (code !== 0 && code !== null) {
-        console.log(`${colors.gray}(exit code: ${code})${colors.reset}`);
-      }
-      resolve(code);
-    });
-    
-    child.on('error', (err) => {
-      console.error(`${colors.red}Error executing command: ${err.message}${colors.reset}`);
-      resolve(1);
-    });
-  });
 }
 
 function clearScreen() {
   console.clear();
-  // Also send clear escape sequence for better compatibility
   process.stdout.write('\x1Bc');
 }
 
 function listTokens(config) {
   const tokens = Object.keys(config.tokens || {}).sort();
-  
+
   console.log(`\n${colors.bright}Available tokens:${colors.reset}`);
   if (tokens.length === 0) {
     console.log(`  ${colors.gray}(none defined)${colors.reset}`);
   } else {
     tokens.forEach(name => {
       const value = config.tokens[name];
-      // Mask sensitive values
       const displayValue = value.length > 30 ? value.substring(0, 30) + '...' : value;
       console.log(`  ${colors.magenta}$${name.padEnd(15)}${colors.reset} ${colors.gray}= ${displayValue}${colors.reset}`);
     });
@@ -231,9 +178,12 @@ function handleTokenCommand(args, config) {
 
 async function interactiveShell() {
   const config = loadConfig();
-  
+  let sigintCount = 0;
+  let isCommandRunning = false;
+  let currentChild = null;
+
   printWelcome(config);
-  
+
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
@@ -242,27 +192,64 @@ async function interactiveShell() {
       const commands = Object.keys(config.commands || {});
       const builtins = ['help', 'exit', 'quit', 'clear', 'list', 'tokens', 'token'];
       const all = [...commands, ...builtins].sort();
-
       const hits = all.filter(c => c.startsWith(line));
       return [hits.length ? hits : all, line];
     }
   });
-  
+
+  // Handle Ctrl+C when readline is active (idle at prompt).
+  // readline intercepts \x03 in raw mode and emits this event.
+  // Having this listener prevents readline from closing on Ctrl+C.
+  rl.on('SIGINT', () => {
+    // Clear the current line
+    rl.line = '';
+    rl.cursor = 0;
+
+    sigintCount++;
+    if (sigintCount === 1) {
+      console.log(`\n${colors.gray}(Press Ctrl+C again to exit)${colors.reset}`);
+      rl.prompt();
+    } else {
+      console.log(`\n${colors.gray}Goodbye!${colors.reset}`);
+      process.exit(0);
+    }
+  });
+
+  // Handle Ctrl+C when a command is running.
+  // During command execution, readline is paused and stdin raw mode is OFF,
+  // so Ctrl+C generates a real SIGINT signal handled here.
+  process.on('SIGINT', () => {
+    if (isCommandRunning && currentChild && currentChild.pid) {
+      try {
+        // Kill the entire child process group with SIGTERM.
+        // SIGTERM kills sh immediately, preventing it from running
+        // subsequent commands in a chain (e.g. "sleep 5; echo test").
+        process.kill(-currentChild.pid, 'SIGTERM');
+      } catch (e) {
+        try {
+          currentChild.kill('SIGTERM');
+        } catch (e2) {
+          // Process already dead
+        }
+      }
+    }
+  });
+
   rl.prompt();
-  
+
   rl.on('line', async (input) => {
+    sigintCount = 0;
     const trimmed = input.trim();
-    
+
     if (!trimmed) {
       rl.prompt();
       return;
     }
-    
+
     const parts = trimmed.split(/\s+/);
     const firstWord = parts[0];
     const args = parts.slice(1);
-    
-    // Check for special commands
+
     switch (firstWord) {
       case 'exit':
       case 'quit':
@@ -270,22 +257,22 @@ async function interactiveShell() {
         rl.close();
         process.exit(0);
         break;
-        
+
       case 'help':
         printHelp(config);
         rl.prompt();
         return;
-        
+
       case 'clear':
         clearScreen();
         rl.prompt();
         return;
-        
+
       case 'list':
         listCommands(config);
         rl.prompt();
         return;
-        
+
       case 'tokens':
         listTokens(config);
         rl.prompt();
@@ -296,27 +283,68 @@ async function interactiveShell() {
         rl.prompt();
         return;
     }
-    
-    // Check if it's an ax command
+
+    // Execute command (ax command or shell command)
+    let commandLine;
     if (config.commands && config.commands[firstWord]) {
-      await executeAxCommand(firstWord, args, config);
+      commandLine = parseTemplate(config.commands[firstWord].template, args, config.tokens);
+      console.log(`${colors.gray}→ ${commandLine}${colors.reset}`);
     } else {
-      // Execute as shell command
-      await executeShellCommand(trimmed);
+      commandLine = trimmed;
     }
-    
+
+    isCommandRunning = true;
+
+    // Pause readline and disable raw mode so that Ctrl+C generates a real
+    // SIGINT signal from the terminal instead of being silently buffered
+    // as \x03 in readline's raw-mode input stream.
+    rl.pause();
+    if (process.stdin.isTTY && process.stdin.setRawMode) {
+      process.stdin.setRawMode(false);
+    }
+
+    try {
+      await new Promise((resolve) => {
+        // detached: true puts the child in its own process group.
+        // Ctrl+C from the terminal only reaches ax's process group (not
+        // the child), so our SIGINT handler sends SIGTERM to the child's
+        // entire group — killing sh before it can run subsequent commands.
+        const child = spawn(commandLine, [], {
+          stdio: 'inherit',
+          shell: true,
+          detached: true
+        });
+
+        currentChild = child;
+
+        child.on('close', (code) => {
+          currentChild = null;
+          resolve(code);
+        });
+
+        child.on('error', (err) => {
+          currentChild = null;
+          console.error(`${colors.red}Error: ${err.message}${colors.reset}`);
+          resolve(1);
+        });
+      });
+    } finally {
+      currentChild = null;
+      isCommandRunning = false;
+
+      // Restore raw mode and resume readline
+      if (process.stdin.isTTY && process.stdin.setRawMode) {
+        process.stdin.setRawMode(true);
+      }
+      rl.resume();
+    }
+
     rl.prompt();
   });
-  
+
   rl.on('close', () => {
     console.log(`\n${colors.gray}Goodbye!${colors.reset}`);
     process.exit(0);
-  });
-  
-  // Handle Ctrl+C gracefully
-  process.on('SIGINT', () => {
-    console.log();
-    rl.prompt();
   });
 }
 

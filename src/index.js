@@ -12,6 +12,7 @@ const { listTokens } = require('./commands/token/list');
 const { showToken } = require('./commands/token/show');
 const { removeToken } = require('./commands/token/remove');
 const { completeCommand } = require('./commands/complete');
+const { interactiveShell } = require('./commands/interactive');
 const { loadConfig } = require('./config');
 
 function getVersion() {
@@ -39,6 +40,7 @@ Commands:
   config [key] [value]      Get or set configuration
   complete --bash|--zsh     Output shell completion script
   complete install --shell  Install shell completion to config file
+  interactive-shell|shell   Start interactive shell mode
 
 Token Commands:
   token add <name> <value>  Add a reusable token
@@ -122,7 +124,13 @@ function main() {
       case 'complete':
         completeCommand(subArgs);
         break;
-      
+
+      case 'interactive-shell':
+      case 'shell':
+      case 'sh':
+        interactiveShell();
+        break;
+
       default:
         // Check if it's a custom command
         const config = loadConfig();

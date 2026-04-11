@@ -73,25 +73,29 @@ ${colors.bright}Usage:${colors.reset}
 `);
 }
 
-function executeShellCommand(commandLine) {
+function executeShellCommand(commandLine, currentChildRef) {
   return new Promise((resolve) => {
     const child = spawn(commandLine, [], {
       stdio: 'inherit',
       shell: true
     });
-    
+
+    currentChildRef.child = child;
+
     child.on('close', (code) => {
+      currentChildRef.child = null;
       resolve(code);
     });
-    
+
     child.on('error', (err) => {
+      currentChildRef.child = null;
       console.error(`${colors.red}Error: ${err.message}${colors.reset}`);
       resolve(1);
     });
   });
 }
 
-function executeAxCommand(commandName, args, config) {
+function executeAxCommand(commandName, args, config, currentChildRef) {
   return new Promise((resolve) => {
     const command = config.commands[commandName];
     if (!command) {
@@ -99,24 +103,28 @@ function executeAxCommand(commandName, args, config) {
       resolve(1);
       return;
     }
-    
+
     const parsedCommand = parseTemplate(command.template, args, config.tokens);
-    
+
     console.log(`${colors.gray}→ ${parsedCommand}${colors.reset}`);
-    
+
     const child = spawn(parsedCommand, [], {
       stdio: 'inherit',
       shell: true
     });
-    
+
+    currentChildRef.child = child;
+
     child.on('close', (code) => {
+      currentChildRef.child = null;
       if (code !== 0 && code !== null) {
         console.log(`${colors.gray}(exit code: ${code})${colors.reset}`);
       }
       resolve(code);
     });
-    
+
     child.on('error', (err) => {
+      currentChildRef.child = null;
       console.error(`${colors.red}Error executing command: ${err.message}${colors.reset}`);
       resolve(1);
     });
@@ -131,7 +139,7 @@ function clearScreen() {
 
 function listTokens(config) {
   const tokens = Object.keys(config.tokens || {}).sort();
-  
+
   console.log(`\n${colors.bright}Available tokens:${colors.reset}`);
   if (tokens.length === 0) {
     console.log(`  ${colors.gray}(none defined)${colors.reset}`);
@@ -231,9 +239,14 @@ function handleTokenCommand(args, config) {
 
 async function interactiveShell() {
   const config = loadConfig();
-  
+  let currentChild = null;
+  let sigintCount = 0;
+
+  // Reference object to track current child process
+  const currentChildRef = { child: null };
+
   printWelcome(config);
-  
+
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
@@ -247,21 +260,23 @@ async function interactiveShell() {
       return [hits.length ? hits : all, line];
     }
   });
-  
+
   rl.prompt();
-  
+
   rl.on('line', async (input) => {
+    // Reset SIGINT counter when user enters a command
+    sigintCount = 0;
     const trimmed = input.trim();
-    
+
     if (!trimmed) {
       rl.prompt();
       return;
     }
-    
+
     const parts = trimmed.split(/\s+/);
     const firstWord = parts[0];
     const args = parts.slice(1);
-    
+
     // Check for special commands
     switch (firstWord) {
       case 'exit':
@@ -270,22 +285,22 @@ async function interactiveShell() {
         rl.close();
         process.exit(0);
         break;
-        
+
       case 'help':
         printHelp(config);
         rl.prompt();
         return;
-        
+
       case 'clear':
         clearScreen();
         rl.prompt();
         return;
-        
+
       case 'list':
         listCommands(config);
         rl.prompt();
         return;
-        
+
       case 'tokens':
         listTokens(config);
         rl.prompt();
@@ -296,27 +311,43 @@ async function interactiveShell() {
         rl.prompt();
         return;
     }
-    
+
     // Check if it's an ax command
     if (config.commands && config.commands[firstWord]) {
-      await executeAxCommand(firstWord, args, config);
+      await executeAxCommand(firstWord, args, config, currentChildRef);
     } else {
       // Execute as shell command
-      await executeShellCommand(trimmed);
+      await executeShellCommand(trimmed, currentChildRef);
     }
-    
+
     rl.prompt();
   });
-  
+
   rl.on('close', () => {
     console.log(`\n${colors.gray}Goodbye!${colors.reset}`);
     process.exit(0);
   });
-  
-  // Handle Ctrl+C gracefully
+
+  // Handle Ctrl+C properly
   process.on('SIGINT', () => {
-    console.log();
-    rl.prompt();
+    // If a command is running, kill it
+    if (currentChildRef.child) {
+      console.log();
+      currentChildRef.child.kill('SIGINT');
+      // Don't exit - let the child process handler clean up
+      return;
+    }
+
+    // No command running - increment counter
+    sigintCount++;
+
+    if (sigintCount === 1) {
+      console.log(`\n${colors.gray}(Press Ctrl+C again to exit)${colors.reset}`);
+      rl.prompt();
+    } else {
+      console.log(`\n${colors.gray}Goodbye!${colors.reset}`);
+      process.exit(0);
+    }
   });
 }
 

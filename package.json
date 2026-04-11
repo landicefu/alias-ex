@@ -1,6 +1,6 @@
 {
   "name": "@landicefu/alias-ex",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "Custom command aliases with variable substitution",
   "main": "src/index.js",
   "bin": {

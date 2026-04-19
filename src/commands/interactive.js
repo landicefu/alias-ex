@@ -1,7 +1,7 @@
 const readline = require('readline');
 const { spawn } = require('child_process');
 const { loadConfig, saveConfig } = require('../config');
-const { parseTemplate } = require('../parser');
+const { parseTemplate, preprocessArgs } = require('../parser');
 
 // ANSI color codes
 const colors = {
@@ -287,7 +287,9 @@ async function interactiveShell() {
     // Execute command (ax command or shell command)
     let commandLine;
     if (config.commands && config.commands[firstWord]) {
-      commandLine = parseTemplate(config.commands[firstWord].template, args, config.tokens);
+      const cmd = config.commands[firstWord];
+      const processedArgs = preprocessArgs(args, cmd.preprocess, config.tokens);
+      commandLine = parseTemplate(cmd.template, processedArgs, config.tokens);
       console.log(`${colors.gray}→ ${commandLine}${colors.reset}`);
     } else {
       commandLine = trimmed;

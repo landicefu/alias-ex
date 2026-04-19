@@ -13,6 +13,9 @@ const { showToken } = require('./commands/token/show');
 const { removeToken } = require('./commands/token/remove');
 const { completeCommand } = require('./commands/complete');
 const { interactiveShell } = require('./commands/interactive');
+const { addPreprocess } = require('./commands/preprocess/add');
+const { listPreprocess } = require('./commands/preprocess/list');
+const { removePreprocess } = require('./commands/preprocess/remove');
 const { loadConfig } = require('./config');
 
 function getVersion() {
@@ -48,6 +51,14 @@ Token Commands:
   token show <name>         Show token value
   token remove <name>       Remove a token
 
+Preprocess Commands:
+  preprocess add replace <cmd> <match> <replace>       Literal substring replace
+  preprocess add regex   <cmd> <pattern> <replacement> Regex (with $1..$9 groups)
+  preprocess add map     <cmd> <key> <value>           Whole-arg alias
+  preprocess add default <cmd> <position> <value>      Fill missing positional arg
+  preprocess list [cmd]                                List rules (all or one)
+  preprocess remove <cmd> <index>                      Remove rule by index
+
 Options:
   -h, --help                Show this help message
   -v, --version             Show version number
@@ -72,16 +83,16 @@ function main() {
     console.log(getVersion());
     return;
   }
-  
+
   const command = args[0];
   const subArgs = args.slice(1);
-  
+
   try {
     switch (command) {
       case 'add':
         addCommand(subArgs[0], subArgs.slice(1).join(' '));
         break;
-      
+
       case 'run':
         if (subArgs[0] === '-c') {
           if (subArgs.length < 2) {
@@ -96,19 +107,19 @@ function main() {
           runCommand(subArgs[0], subArgs.slice(1));
         }
         break;
-      
+
       case 'list':
         listCommands();
         break;
-      
+
       case 'show':
         showCommand(subArgs[0]);
         break;
-      
+
       case 'remove':
         removeCommand(subArgs[0]);
         break;
-      
+
       case 'edit':
         editCommand(subArgs[0]);
         break;
@@ -119,6 +130,10 @@ function main() {
 
       case 'token':
         handleTokenCommand(subArgs);
+        break;
+
+      case 'preprocess':
+        handlePreprocessCommand(subArgs);
         break;
 
       case 'complete':
@@ -155,30 +170,60 @@ function handleTokenCommand(args) {
     console.error('Subcommands: add, list, show, remove');
     process.exit(1);
   }
-  
+
   const subCommand = args[0];
   const subArgs = args.slice(1);
-  
+
   switch (subCommand) {
     case 'add':
       addToken(subArgs[0], subArgs.slice(1).join(' '));
       break;
-    
+
     case 'list':
       listTokens();
       break;
-    
+
     case 'show':
       showToken(subArgs[0]);
       break;
-    
+
     case 'remove':
       removeToken(subArgs[0]);
       break;
-    
+
     default:
       console.error(`Unknown token subcommand: ${subCommand}`);
       console.error('Subcommands: add, list, show, remove');
+      process.exit(1);
+  }
+}
+
+function handlePreprocessCommand(args) {
+  if (args.length === 0) {
+    console.error('Usage: ax preprocess <subcommand> [options]');
+    console.error('Subcommands: add, list, remove');
+    process.exit(1);
+  }
+
+  const subCommand = args[0];
+  const subArgs = args.slice(1);
+
+  switch (subCommand) {
+    case 'add':
+      addPreprocess(subArgs[0], subArgs[1], subArgs[2], subArgs.slice(3).join(' '));
+      break;
+
+    case 'list':
+      listPreprocess(subArgs[0]);
+      break;
+
+    case 'remove':
+      removePreprocess(subArgs[0], subArgs[1]);
+      break;
+
+    default:
+      console.error(`Unknown preprocess subcommand: ${subCommand}`);
+      console.error('Subcommands: add, list, remove');
       process.exit(1);
   }
 }
